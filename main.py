@@ -26,10 +26,10 @@ while True:
         hand = hands[0]
 
         lmList = hand['lmList']
-        print(lmList)
         for lm in lmList:
-            data.extend(lm[[0], height - lm[1], lm[2]])
+            data.extend([lm[0], height - lm[1], lm[2]])
         sock.sendto(str.encode(str(data)), serverAddressPort)
+        print(data)
 
     cv2.imshow("Image", img)
     cv2.waitKey(1)
