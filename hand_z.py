@@ -15,6 +15,11 @@ detector = HandDetector(maxHands=1, detectionCon=0.8)  # 최대 손 1개, 신뢰
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 serverAddressPort = ("127.0.0.1", 5052)
 
+buttonDelay = 30
+buttonPressed = False
+buttonCounter = 0
+addObject = '0'
+
 while True:
     success, img = cap.read()
 
@@ -34,19 +39,50 @@ while True:
         f = 480
         d = (W * f) / w
 
-        d=d-50
+        d = d - 50
+        if buttonPressed is False:
+            hand
+            fingers = detector.fingersUp(hand)
+            lmList = hand['lmList']
+            indexFinger = lmList[8][0], lmList[8][1]
+
+            if fingers == [1, 0, 0, 0, 0]:
+                addObject = "cube"
+                #buttonPressed = True
+
+            elif fingers == [0, 0, 0, 0, 1]:
+                addObject = "orb"
+                #buttonPressed = True
+
+            else:
+                addObject="None"
+                #buttonPressed = True
+           # print(addObject)
 
         lmList = hand['lmList']
         for lm in lmList:
+
             if lm[2] == 0:
-                data.extend([lm[0], height - lm[1], d*10])
-                print(lm[2])
+                if buttonPressed is True:
+                    addObject='None'
+                else:
+                    buttonPressed=True
+                data.extend([lm[0], height - lm[1], d * 10, addObject])
 
             else:
-                data.extend([lm[0], height - lm[1], ((d*10)+lm[2])])
+                data.extend([lm[0], height - lm[1], ((d * 10) + lm[2]), 'None'])
 
+        print(data)
         sock.sendto(str.encode(str(data)), serverAddressPort)
+
+    if buttonPressed:
+        buttonCounter += 1
+        if buttonCounter > buttonDelay:
+            buttonCounter = 0
+            buttonPressed = False
 
     img = cv2.resize(img, (0, 0), None, 0.5, 0.5)
     cv2.imshow("Image", img)
-    cv2.waitKey(1)
+    key=cv2.waitKey(1)
+    if key == ord('q'):
+        break
