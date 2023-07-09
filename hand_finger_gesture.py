@@ -1,6 +1,7 @@
 import cv2
 from cvzone.HandTrackingModule import HandDetector
 import socket
+import mediapipe as mp
 
 width, height = 1280, 720
 # Webcam
@@ -40,39 +41,42 @@ while True:
         d = (W * f) / w
 
         d = d - 50
+        lmList = hand['lmList']
+
         if buttonPressed is False:
             hand
             fingers = detector.fingersUp(hand)
             lmList = hand['lmList']
+
             indexFinger = lmList[8][0], lmList[8][1]
 
             if fingers == [1, 0, 0, 0, 0]:
                 addObject = "cube"
-                #buttonPressed = True
+                # buttonPressed = True
 
             elif fingers == [0, 0, 0, 0, 1]:
                 addObject = "orb"
-                #buttonPressed = True
+                # buttonPressed = True
 
             else:
-                addObject="None"
-                #buttonPressed = True
-           # print(addObject)
+                addObject = "None"
+                # buttonPressed = True
+        # print(addObject)
 
         lmList = hand['lmList']
         for lm in lmList:
+            print(lm[1])
 
             if lm[2] == 0:
                 if buttonPressed is True:
-                    addObject='None'
+                    addObject = 'None'
                 else:
-                    buttonPressed=True
+                    buttonPressed = True
                 data.extend([lm[0], height - lm[1], d * 10, addObject])
 
             else:
                 data.extend([lm[0], height - lm[1], ((d * 10) + lm[2]), 'None'])
 
-        print(data)
         sock.sendto(str.encode(str(data)), serverAddressPort)
 
     if buttonPressed:
@@ -83,6 +87,6 @@ while True:
 
     img = cv2.resize(img, (0, 0), None, 0.5, 0.5)
     cv2.imshow("Image", img)
-    key=cv2.waitKey(1)
+    key = cv2.waitKey(1)
     if key == ord('q'):
         break
