@@ -2,23 +2,6 @@ import mediapipe as mp
 import cv2
 import numpy as np
 import socket
-from cvzone.HandTrackingModule import HandDetector
-
-def detect_dist (hands):
-    detector = HandDetector(maxHands=1, detectionCon=0.8)
-    hand = hands[0]
-            pointLeft = hand['lmList'][2].copy()
-            pointLeft.pop()
-            pointRight = hand['lmList'][17].copy()
-            pointRight.pop()
-            w, _ = detector.findDistance(pointLeft, pointRight)
-            W = 11
-
-            f = 480
-            d = (W * f) / w
-
-            d = d - 50
-            return d
 
 mp_drawing = mp.solutions.drawing_utils
 mp_holistic = mp.solutions.holistic
@@ -31,6 +14,9 @@ buttonPressed = False
 buttonCounter = 0
 addObject = 'None'
 
+width = 1280
+height = 720
+
 cap = cv2.VideoCapture(0)
 cap.set(3, 1280)
 cap.set(4, 720)
@@ -39,8 +25,8 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
     while cap.isOpened():
         ret, frame = cap.read()
 
-        height = frame.shape[0]
-        width = frame.shape[1]
+        # height = frame.shape[0]
+        # width = frame.shape[1]
 
         data = []
         counter = 0
@@ -73,60 +59,71 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                                   mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2)
                                   )
         if results.pose_landmarks.landmark is not None:
+
+            if results.pose_landmarks.landmark[16] is not None:
+                R_wrist = results.pose_landmarks.landmark[16]
+
             if results.pose_landmarks.landmark[15] is not None:
-                R_wrist = results.pose_landmarks.landmark[15]
-            if results.pose_landmarks.landmark[14] is not None:
-                L_wrist = results.pose_landmarks.landmark[14]
+                L_wrist = results.pose_landmarks.landmark[15]
 
             if (results.right_hand_landmarks is None or results.left_hand_landmarks is None) and (
                     results.right_hand_landmarks is not None or results.left_hand_landmarks is not None):
+
                 if results.right_hand_landmarks is not None:
                     joint_data = []
                     joint = np.zeros((21, 4))
                     for j, lm in enumerate(results.right_hand_landmarks.landmark):
                         if j == 0:
-                            z = round(results.pose_landmarks.landmark[15].z * width)
+                            z = round(results.pose_landmarks.landmark[16].z)
                         else:
-                            z = round((results.pose_landmarks.landmark[15].z * width) + (lm.z * width))
+                            z = round(results.pose_landmarks.landmark[16].z + lm.z)
                         joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
                         data.extend([round(lm.x * width), round(height - (lm.y * height)), z])
-                    data.append(addObject)
 
                 if results.left_hand_landmarks is not None:
                     joint_data = []
                     joint = np.zeros((21, 4))
                     for j, lm in enumerate(results.left_hand_landmarks.landmark):
                         if j == 0:
-                            z = round(results.pose_landmarks.landmark[14].z * width)
+                            z = round(results.pose_landmarks.landmark[15].z)
                         else:
-                            z = round((results.pose_landmarks.landmark[14].z * width) + (lm.z * width))
+                            z = round(results.pose_landmarks.landmark[15].z + lm.z)
                         joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
                         data.extend([round(lm.x * width), round(height - (lm.y * height)), z])
-                    data.append(addObject)
 
             elif results.right_hand_landmarks is not None and results.left_hand_landmarks is not None:
                 L_joint_data = []
                 L_joint = np.zeros((21, 4))
                 for j, lm in enumerate(results.left_hand_landmarks.landmark):
                     if j == 0:
-                        z = round(results.pose_landmarks.landmark[14].z * width)
+                        z = round(results.pose_landmarks.landmark[15].z, 3)
                     else:
-                        z = round((results.pose_landmarks.landmark[14].z * width) + (lm.z * width))
+                        z = round(results.pose_landmarks.landmark[15].z + lm.z, 3)
                     L_joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
                     data.extend([round(lm.x * width), round(height - (lm.y * height)), z])
-                data.append(addObject)
 
                 R_joint_data = []
                 R_joint = np.zeros((21, 4))
                 for j, lm in enumerate(results.right_hand_landmarks.landmark):
                     if j == 0:
-                        z = round(results.pose_landmarks.landmark[15].z * width)
+                        z = round(results.pose_landmarks.landmark[16].z, 3)
                     else:
-                        z = round((results.pose_landmarks.landmark[15].z * width) + (lm.z * width))
+                        z = round(results.pose_landmarks.landmark[16].z + lm.z, 3)
                     R_joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
                     data.extend([round(lm.x * width), round(height - (lm.y * height)), z])
-                data.append(addObject)
-        #print(data)
+                #data.append(None)
+                data.append(None)
+
+            for i, lm in enumerate(results.pose_landmarks.landmark):
+
+                if lm.visibility < 0.01:
+                    visible = False
+                else:
+                    visible = True
+
+                data.extend([round(lm.x * width), round(height - (lm.y * height)), round(lm.z, 3), visible])
+            data.append(addObject)
+
         sock.sendto(str.encode(str(data)), serverAddressPort)
 
         cv2.imshow('Raw Webcam Feed', image)
