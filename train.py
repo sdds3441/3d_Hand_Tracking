@@ -16,14 +16,14 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 actions = [
     'come',
-    'away',
+    'hi',
     'spin'
 ]
 
 data = np.concatenate([
-    np.load('dataset/seq_come_1688801577.npy'),
-    np.load('dataset/seq_away_1688801577.npy'),
-    np.load('dataset/seq_spin_1688801577.npy'),
+    np.load('dataset/seq_come_1690084133.npy'),
+    np.load('dataset/seq_hi_1690084133.npy'),
+    np.load('dataset/seq_spin_1690084133.npy'),
 ], axis=0)
 
 data.shape

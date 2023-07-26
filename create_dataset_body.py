@@ -4,17 +4,18 @@ import cv2
 import mediapipe as mp
 import numpy as np
 
-actions = ['come', 'hi', 'spin']
+actions = ['arm', 'waist', 'leg']
 seq_length = 30
 secs_for_action = 30
 
 # MediaPipe hands model
-mp_hands = mp.solutions.hands
+mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
-hands = mp_hands.Hands(
-    max_num_hands=1,
-    min_detection_confidence=0.5,
-    min_tracking_confidence=0.5)
+pose = mp_pose.Pose(
+        static_image_mode=True,
+        model_complexity=2,
+        enable_segmentation=True,
+        min_detection_confidence=0.5)
 
 cap = cv2.VideoCapture(0)
 
@@ -41,26 +42,26 @@ while cap.isOpened():
 
             img = cv2.flip(img, 1)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            result = hands.process(img)
+            result = pose.process(img)
             img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-
-            if result.multi_hand_landmarks is not None:
-                for res in result.multi_hand_landmarks:
-                    joint = np.zeros((21, 4))
+            result.pose_landmarks
+            if result.pose_landmarks is not None:
+                for res in result.pose_landmarks:
+                    joint = np.zeros((12, 4))
                     for j, lm in enumerate(res.landmark):
                         joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
 
                     # Compute angles between joints
-                    v1 = joint[[0, 1, 2, 3, 0, 5, 6, 7, 0, 9, 10, 11, 0, 13, 14, 15, 0, 17, 18, 19], :3]  # Parent joint
-                    v2 = joint[[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], :3]  # Child joint
+                    v1 = joint[[11, 11, 13, 12, 14, 11, 12, 23, 23, 25, 24, 26], :3]  # Parent joint
+                    v2 = joint[[12, 13, 15, 14, 16, 23, 24, 24, 25, 27, 26, 28], :3]  # Child joint
                     v = v2 - v1  # [20, 3]
                     # Normalize v
                     v = v / np.linalg.norm(v, axis=1)[:, np.newaxis]
 
                     # Get angle using arcos of dot product
                     angle = np.arccos(np.einsum('nt,nt->n',
-                                                v[[0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14, 16, 17, 18], :],
-                                                v[[1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15, 17, 18, 19], :]))  # [15,]
+                                                v[[0, 1, 0, 3, 0, 0, 5, 7, 8, 7, 10], :],
+                                                v[[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], :]))  # [15,]
 
                     angle = np.degrees(angle)  # Convert radian to degree
 
@@ -71,7 +72,7 @@ while cap.isOpened():
 
                     data.append(d)
 
-                    mp_drawing.draw_landmarks(img, res, mp_hands.HAND_CONNECTIONS)
+                    mp_drawing.draw_landmarks(img, res, mp_pose.POSE_CONNECTIONS)
 
             cv2.imshow('img', img)
             if cv2.waitKey(1) == ord('q'):

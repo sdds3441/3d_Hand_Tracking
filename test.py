@@ -6,7 +6,7 @@ from cvzone.HandTrackingModule import HandDetector
 import time
 import socket
 
-actions = ['come', 'away', 'spin']
+actions = ['come', 'hi', 'spin']
 seq_length = 30
 width, height = 1280, 720
 detector = HandDetector(maxHands=1, detectionCon=0.8)
@@ -63,7 +63,7 @@ while cap.isOpened():
             v2 = joint[[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], :3]  # Child joint
             v = v2 - v1  # [20, 3]
 
-            print(joint)
+            #print(joint)
 
             #print(data)
             # Normalize v
