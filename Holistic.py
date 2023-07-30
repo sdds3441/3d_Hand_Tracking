@@ -219,6 +219,7 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
 
                 data.extend([round(lm.x * width), round(height - (lm.y * height)), round(lm.z, 3), visible])
             data.append(addObject)
+            print(data)
 
         sock.sendto(str.encode(str(data)), serverAddressPort)
 

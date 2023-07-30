@@ -10,7 +10,7 @@ width, height = 1280, 720
 actions = ['come', 'away', 'spin']
 seq_length = 30
 
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture('C:\\Users\\김효찬\\PycharmProjects\\3d Hand Tracking\\videos\\video.mp4')
 cap.set(3, width)
 cap.set(4, height)
 
