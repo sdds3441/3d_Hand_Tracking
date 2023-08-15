@@ -1,135 +1,254 @@
-import cv2
 import mediapipe as mp
+import cv2
 import numpy as np
-from keras.models import load_model
-from cvzone.HandTrackingModule import HandDetector
-import time
 import socket
+from keras.models import load_model
+import pyrealsense2
+from realsense_depth import *
 
-actions = ['come', 'away', 'spin']
-seq_length = 30
-width, height = 1280, 720
-detector = HandDetector(maxHands=1, detectionCon=0.8)
 
-model = load_model('models/model.h5')
+def detect_z(depth_frame, x, y):
+    z = depth_frame[x, y]
+    return z
 
-# MediaPipe hands model
-mp_hands = mp.solutions.hands
+
 mp_drawing = mp.solutions.drawing_utils
-hands = mp_hands.Hands(
-    max_num_hands=1,
-    min_detection_confidence=0.5,
-    min_tracking_confidence=0.5)
+mp_holistic = mp.solutions.holistic
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+serverAddressPort = ("127.0.0.1", 5052)
+
+buttonDelay = 10
+buttonPressed = False
+buttonCounter = 0
+addObject = 'None'
+
+actions = ['come', 'hi', 'spin']
+seq_length = 30
+
+seq = []
+action_seq = []
+action_list = []
+
+width = 1280
+height = 720
 
 cap = cv2.VideoCapture(0)
 cap.set(3, 1280)
 cap.set(4, 720)
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-serverAddressPort = ("127.0.0.1", 5052)
+point = (400, 300)
 
-# w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-# h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-# fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
-# out = cv2.VideoWriter('input.mp4', fourcc, cap.get(cv2.CAP_PROP_FPS), (w, h))
-# out2 = cv2.VideoWriter('output.mp4', fourcc, cap.get(cv2.CAP_PROP_FPS), (w, h))
+dc = DepthCamera()
+model = load_model('models/model.h5')
+# Initiate holistic model
+with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
+    while cap.isOpened():
+        ret, depth_frame, frame = dc.get_frame()
 
-seq = []
-action_seq = []
-time_counter = True
+        # height = frame.shape[0]
+        # width = frame.shape[1]
 
-while cap.isOpened():
-    ret, img = cap.read()
-    img0 = img.copy()
+        data = []
+        counter = 0
 
-    data = []
+        # Recolor Feed
+        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # Make Detections
+        results = holistic.process(image)
 
-    img = cv2.flip(img, 1)
+        # face_landmarks, pose_landmarks, left_hand_landmarks, right_hand_landmarks
 
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    result = hands.process(img)
-    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-    if result.multi_hand_landmarks is not None:
-        for res in result.multi_hand_landmarks:
-            joint_data = []
-            joint = np.zeros((21, 4))
-            for j, lm in enumerate(res.landmark):
-                joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
-                data.extend([round(lm.x*1280), round(height-(lm.y*720)), round(lm.z*1280), 'None'])
+        # Recolor image back to BGR for rendering
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
+        # 2. Right hand
+        mp_drawing.draw_landmarks(image, results.right_hand_landmarks, mp_holistic.HAND_CONNECTIONS,
+                                  mp_drawing.DrawingSpec(color=(80, 22, 10), thickness=2, circle_radius=4),
+                                  mp_drawing.DrawingSpec(color=(80, 44, 121), thickness=2, circle_radius=2)
+                                  )
 
-            # Compute angles between joints
-            v1 = joint[[0, 1, 2, 3, 0, 5, 6, 7, 0, 9, 10, 11, 0, 13, 14, 15, 0, 17, 18, 19], :3]  # Parent joint
-            v2 = joint[[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], :3]  # Child joint
-            v = v2 - v1  # [20, 3]
+        # 3. Left Hand
+        mp_drawing.draw_landmarks(image, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS,
+                                  mp_drawing.DrawingSpec(color=(121, 22, 76), thickness=2, circle_radius=4),
+                                  mp_drawing.DrawingSpec(color=(121, 44, 250), thickness=2, circle_radius=2)
+                                  )
 
-            print(v)
+        # 4. Pose Detections
+        mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS,
+                                  mp_drawing.DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=4),
+                                  mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2)
+                                  )
+        try:
+            if results.pose_landmarks.landmark is not None:
 
-            #print(data)
-            # Normalize v
-            v = v / np.linalg.norm(v, axis=1)[:, np.newaxis]
+                if results.pose_landmarks.landmark[16] is not None:
+                    R_wrist = results.pose_landmarks.landmark[16]
 
-            # Get angle using arcos of dot product
-            angle = np.arccos(np.einsum('nt,nt->n',
-                                        v[[0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14, 16, 17, 18], :],
-                                        v[[1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15, 17, 18, 19], :]))  # [15,]
+                if results.pose_landmarks.landmark[15] is not None:
+                    L_wrist = results.pose_landmarks.landmark[15]
 
-            angle = np.degrees(angle)  # Convert radian to degree
+                if (results.right_hand_landmarks is None or results.left_hand_landmarks is None) and (
+                        results.right_hand_landmarks is not None or results.left_hand_landmarks is not None):
 
-            d = np.concatenate([joint.flatten(), angle])
+                    if results.right_hand_landmarks is not None:
+                        joint_data = []
+                        joint = np.zeros((21, 4))
+                        for j, lm in enumerate(results.right_hand_landmarks.landmark):
+                            if j == 0:
+                                x = results.pose_landmarks.landmark[16].x
+                                y = results.pose_landmarks.landmark[16].y
+                                z = round(results.pose_landmarks.landmark[16].z)
+                                pre_x = x
+                                pre_y = y
+                            else:
+                                x = results.pose_landmarks.landmark[16].x - (pre_x - lm.x)
+                                y = results.pose_landmarks.landmark[16].y - (pre_y - lm.y)
+                                z = results.pose_landmarks.landmark[16].z + lm.z
+                            joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
+                            data.extend([round(x * width), round(height - (y * height)), z])
 
-            seq.append(d)
+                        v1 = joint[[0, 1, 2, 3, 0, 5, 6, 7, 0, 9, 10, 11, 0, 13, 14, 15, 0, 17, 18, 19],
+                             :3]  # Parent joint
+                        v2 = joint[[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+                             :3]  # Child joint
+                        v = v2 - v1  # [20, 3]
 
-            mp_drawing.draw_landmarks(img, res, mp_hands.HAND_CONNECTIONS)
+                        # Normalize v
+                        v = v / np.linalg.norm(v, axis=1)[:, np.newaxis]
 
-            if len(seq) < seq_length:
-                continue
+                        # Get angle using arcos of dot product
+                        angle = np.arccos(np.einsum('nt,nt->n',
+                                                    v[[0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14, 16, 17, 18], :],
+                                                    v[[1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15, 17, 18, 19],
+                                                    :]))  # [15,]
 
-            input_data = np.expand_dims(np.array(seq[-seq_length:], dtype=np.float32), axis=0)
+                        angle = np.degrees(angle)  # Convert radian to degree
 
-            y_pred = model.predict(input_data).squeeze()
+                        degree = np.concatenate([joint.flatten(), angle])
 
-            i_pred = int(np.argmax(y_pred))
-            conf = y_pred[i_pred]
+                        seq.append(degree)
 
-            if conf < 0.9:
-                continue
+                        if len(seq) < seq_length:
+                            continue
 
-            action = actions[i_pred]
-            action_seq.append(action)
+                        input_data = np.expand_dims(np.array(seq[-seq_length:], dtype=np.float32), axis=0)
 
-            if len(action_seq) < 3:
-                continue
+                        y_pred = model.predict(input_data).squeeze()
 
-            if time_counter:
-                start = time.time()
-                time_counter = False
-                action_list = []
+                        i_pred = int(np.argmax(y_pred))
+                        conf = y_pred[i_pred]
 
-            if action_seq[-1] == action_seq[-2] == action_seq[-3]:
-                action_list.append(action)
-            if start + 3 < time.time():
-                if not action_list:
-                    this_action = "?"
-                else:
-                    this_action = max(set(action_list), key=action_list.count)
-                time_counter = True
+                        if conf < 0.9:
+                            continue
 
-            try:
-                this_action
-            except NameError:
-                this_action = None
+                        action = actions[i_pred]
+                        action_seq.append(action)
 
-            if this_action is None:
-                this_action = '?'
-            cv2.putText(img, f'{this_action.upper()}',
-                        org=(int(res.landmark[0].x * img.shape[1]), int(res.landmark[0].y * img.shape[0] + 20)),
-                        fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=1, color=(255, 255, 255), thickness=2)
+                        if len(action_seq) < 3:
+                            continue
 
-        sock.sendto(str.encode(str(data)), serverAddressPort)
+                        action_list = []
 
-    # out.write(img0)
-    # out2.write(img)
-    cv2.imshow('img', img)
-    if cv2.waitKey(1) == ord('q'):
-        break
+                        if action_seq[-1] == action_seq[-2] == action_seq[-3]:
+                            action_list.append(action)
+
+                        else:
+                            action_list = ["None"]
+
+                        if buttonPressed is True:
+                            this_action = 'None'
+                        else:
+                            this_action = max(set(action_list), key=action_list.count)
+                            buttonPressed = True
+                        data.append(this_action)
+                        if this_action != 'None':
+                            print(this_action)
+
+                        sock.sendto(str.encode(str(data)), serverAddressPort)
+
+                    if results.left_hand_landmarks is not None:
+                        joint_data = []
+                        joint = np.zeros((21, 4))
+                        for j, lm in enumerate(results.left_hand_landmarks.landmark):
+                            if j == 0:
+                                x = results.pose_landmarks.landmark[15].x
+                                y = results.pose_landmarks.landmark[15].y
+                                z=depth_frame[round(lm.y * height), round(lm.x * width)]
+                                #z = detect_z(depth_frame, round(y * height), round(x * width))
+                                print(z)
+                                pre_x = x
+                                pre_y = y
+                            else:
+                                x = results.pose_landmarks.landmark[15].x - (pre_x - lm.x)
+                                y = results.pose_landmarks.landmark[15].y - (pre_y - lm.y)
+                                z = round(results.pose_landmarks.landmark[15].z + lm.z)
+                            joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
+                            data.extend([round(x * width), round(height - (y * height)), z])
+
+                    sock.sendto(str.encode(str(data)), serverAddressPort)
+
+                elif results.right_hand_landmarks is not None and results.left_hand_landmarks is not None:
+                    L_joint_data = []
+                    L_joint = np.zeros((21, 4))
+                    for j, lm in enumerate(results.left_hand_landmarks.landmark):
+                        if j == 0:
+                            x = results.pose_landmarks.landmark[15].x
+                            y = results.pose_landmarks.landmark[15].y
+                            z = round(results.pose_landmarks.landmark[15].z, 3)
+                            pre_x = x
+                            pre_y = y
+                        else:
+                            x = results.pose_landmarks.landmark[15].x - (pre_x - lm.x)
+                            y = results.pose_landmarks.landmark[15].y - (pre_y - lm.y)
+                            z = round(results.pose_landmarks.landmark[15].z + lm.z, 3)
+                        L_joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
+                        data.extend([round(x * width), round(height - (y * height)), z])
+
+                    R_joint_data = []
+                    R_joint = np.zeros((21, 4))
+                    for j, lm in enumerate(results.right_hand_landmarks.landmark):
+                        if j == 0:
+                            x = results.pose_landmarks.landmark[16].x
+                            y = results.pose_landmarks.landmark[16].y
+                            z = round(results.pose_landmarks.landmark[16].z, 3)
+                            pre_x = x
+                            pre_y = y
+                        else:
+                            x = results.pose_landmarks.landmark[16].x - (pre_x - lm.x)
+                            y = results.pose_landmarks.landmark[16].y - (pre_y - lm.y)
+                            z = round(results.pose_landmarks.landmark[16].z + lm.z, 3)
+                        R_joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
+                        data.extend([round(x * width), round(height - (y * height)), z])
+
+                    data.append(None)
+                    data.append(None)
+
+                for i, lm in enumerate(results.pose_landmarks.landmark):
+
+                    if lm.visibility < 0.01:
+                        visible = False
+                    else:
+                        visible = True
+
+                    data.extend([round(lm.x * width), round(height - (lm.y * height)), round(lm.z, 3), visible])
+                data.append(addObject)
+
+            sock.sendto(str.encode(str(data)), serverAddressPort)
+
+            if buttonPressed:
+                buttonCounter += 1
+                if buttonCounter > buttonDelay:
+                    buttonCounter = 0
+                    buttonPressed = False
+
+            cv2.imshow('Raw Webcam Feed', image)
+
+            if cv2.waitKey(10) & 0xFF == ord('q'):
+                break
+
+        except:
+            print("None")
+
+cap.release()
+cv2.destroyAllWindows()
