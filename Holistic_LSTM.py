@@ -4,6 +4,8 @@ import numpy as np
 import socket
 from keras.models import load_model
 
+#오른손만 LSTM되있음
+
 mp_drawing = mp.solutions.drawing_utils
 mp_holistic = mp.solutions.holistic
 
@@ -17,6 +19,7 @@ addObject = 'None'
 
 actions = ['come', 'hi', 'spin']
 seq_length = 30
+
 
 seq = []
 action_seq = []
@@ -70,15 +73,6 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                                   )
         if results.pose_landmarks.landmark is not None:
 
-            for i, lm in enumerate(results.pose_landmarks.landmark):
-
-                if lm.visibility < 0.01:
-                    visible = False
-                else:
-                    visible = True
-
-                data.extend([round(lm.x * width), round(height - (lm.y * height)), round(lm.z, 3)])
-
             if results.pose_landmarks.landmark[16] is not None:
                 R_wrist = results.pose_landmarks.landmark[16]
 
@@ -101,9 +95,67 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                         else:
                             x = results.pose_landmarks.landmark[16].x - (pre_x - lm.x)
                             y = results.pose_landmarks.landmark[16].y - (pre_y - lm.y)
-                            z = round(results.pose_landmarks.landmark[16].z + lm.z)
+                            z = results.pose_landmarks.landmark[16].z + lm.z
                         joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
                         data.extend([round(x * width), round(height - (y * height)), z])
+
+                    v1 = joint[[0, 1, 2, 3, 0, 5, 6, 7, 0, 9, 10, 11, 0, 13, 14, 15, 0, 17, 18, 19], :3]  # Parent joint
+                    v2 = joint[[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+                         :3]  # Child joint
+                    v = v2 - v1  # [20, 3]
+
+                    # Normalize v
+                    v = v / np.linalg.norm(v, axis=1)[:, np.newaxis]
+
+                    # Get angle using arcos of dot product
+                    angle = np.arccos(np.einsum('nt,nt->n',
+                                                v[[0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14, 16, 17, 18], :],
+                                                v[[1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15, 17, 18, 19], :]))  # [15,]
+
+                    angle = np.degrees(angle)  # Convert radian to degree
+
+                    degree = np.concatenate([joint.flatten(), angle])
+
+                    seq.append(degree)
+
+                    if len(seq) < seq_length:
+                        continue
+
+                    input_data = np.expand_dims(np.array(seq[-seq_length:], dtype=np.float32), axis=0)
+
+                    y_pred = model.predict(input_data).squeeze()
+
+                    i_pred = int(np.argmax(y_pred))
+                    conf = y_pred[i_pred]
+
+                    if conf < 0.9:
+                        continue
+
+                    action = actions[i_pred]
+                    action_seq.append(action)
+
+                    if len(action_seq) < 3:
+                        continue
+
+                    action_list = []
+
+                    if action_seq[-1] == action_seq[-2] == action_seq[-3]:
+                        action_list.append(action)
+
+                    else:
+                        action_list = ["None"]
+
+                    if buttonPressed is True:
+                        this_action = 'None'
+                    else:
+                        this_action = max(set(action_list), key=action_list.count)
+                        buttonPressed = True
+                    data.append(this_action)
+                    if this_action != 'None':
+                        print(this_action)
+
+                    sock.sendto(str.encode(str(data)), serverAddressPort)
+
 
                 if results.left_hand_landmarks is not None:
                     joint_data = []
@@ -113,11 +165,11 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                             x = results.pose_landmarks.landmark[15].x
                             y = results.pose_landmarks.landmark[15].y
                             z = round(results.pose_landmarks.landmark[15].z)
-                            pre_x = x
-                            pre_y = y
+                            pre_x=x
+                            pre_y=y
                         else:
-                            x = results.pose_landmarks.landmark[15].x - (pre_x - lm.x)
-                            y = results.pose_landmarks.landmark[15].y - (pre_y - lm.y)
+                            x = results.pose_landmarks.landmark[15].x - (pre_x-lm.x)
+                            y = results.pose_landmarks.landmark[15].y - (pre_y-lm.y)
                             z = round(results.pose_landmarks.landmark[15].z + lm.z)
                         joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
                         data.extend([round(x * width), round(height - (y * height)), z])
@@ -157,8 +209,20 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                     R_joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
                     data.extend([round(x * width), round(height - (y * height)), z])
 
+                data.append(None)
+                data.append(None)
+
+            for i, lm in enumerate(results.pose_landmarks.landmark):
+
+                if lm.visibility < 0.01:
+                    visible = False
+                else:
+                    visible = True
+
+                data.extend([round(lm.x * width), round(height - (lm.y * height)), round(lm.z, 3), visible])
+            data.append(addObject)
+
         sock.sendto(str.encode(str(data)), serverAddressPort)
-        print(len(data))
 
         if buttonPressed:
             buttonCounter += 1
