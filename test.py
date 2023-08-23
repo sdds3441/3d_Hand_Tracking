@@ -10,7 +10,7 @@ actions = ['come', 'hi', 'spin']
 seq_length = 30
 width, height = 1280, 720
 detector = HandDetector(maxHands=1, detectionCon=0.8)
-
+gesture={0:'grab', 5:'release'}
 model = load_model('models/model.h5')
 
 # MediaPipe hands model

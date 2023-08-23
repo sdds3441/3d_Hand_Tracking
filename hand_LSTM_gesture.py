@@ -7,7 +7,7 @@ import time
 
 width, height = 1280, 720
 # Webcam
-actions = ['come', 'away', 'spin']
+actions = ['grab', 'release']
 seq_length = 30
 
 cap = cv2.VideoCapture('C:\\Users\\김효찬\\PycharmProjects\\3d Hand Tracking\\videos\\video.mp4')

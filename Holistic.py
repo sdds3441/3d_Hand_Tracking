@@ -22,6 +22,9 @@ seq = []
 action_seq = []
 action_list = []
 
+R_action = 'None'
+L_action = 'None'
+
 width = 1280
 height = 720
 
@@ -31,6 +34,7 @@ cap.set(4, 720)
 
 model = load_model('models/model.h5')
 # Initiate holistic model
+
 with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
     while cap.isOpened():
         ret, frame = cap.read()
@@ -68,108 +72,113 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                                   mp_drawing.DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=4),
                                   mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2)
                                   )
-        if results.pose_landmarks.landmark is not None:
+        try:
+            if results.pose_landmarks.landmark is not None:
 
-            for i, lm in enumerate(results.pose_landmarks.landmark):
+                for i, lm in enumerate(results.pose_landmarks.landmark):
 
-                if lm.visibility < 0.01:
-                    visible = False
-                else:
-                    visible = True
+                    if lm.visibility < 0.01:
+                        visible = False
+                    else:
+                        visible = True
 
-                data.extend([round(lm.x * width), round(height - (lm.y * height)), round(lm.z, 3)])
+                    data.extend([round(lm.x * width), round(height - (lm.y * height)), round(lm.z, 3)])
 
-            if results.pose_landmarks.landmark[16] is not None:
-                R_wrist = results.pose_landmarks.landmark[16]
+                if results.pose_landmarks.landmark[16] is not None:
+                    R_wrist = results.pose_landmarks.landmark[16]
 
-            if results.pose_landmarks.landmark[15] is not None:
-                L_wrist = results.pose_landmarks.landmark[15]
+                if results.pose_landmarks.landmark[15] is not None:
+                    L_wrist = results.pose_landmarks.landmark[15]
 
-            if (results.right_hand_landmarks is None or results.left_hand_landmarks is None) and (
-                    results.right_hand_landmarks is not None or results.left_hand_landmarks is not None):
+                if (results.right_hand_landmarks is None or results.left_hand_landmarks is None) and (
+                        results.right_hand_landmarks is not None or results.left_hand_landmarks is not None):
 
-                if results.right_hand_landmarks is not None:
-                    joint_data = []
-                    joint = np.zeros((21, 4))
-                    for j, lm in enumerate(results.right_hand_landmarks.landmark):
-                        if j == 0:
-                            x = results.pose_landmarks.landmark[16].x
-                            y = results.pose_landmarks.landmark[16].y
-                            z = round(results.pose_landmarks.landmark[16].z)
-                            pre_x = x
-                            pre_y = y
-                        else:
-                            x = results.pose_landmarks.landmark[16].x - (pre_x - lm.x)
-                            y = results.pose_landmarks.landmark[16].y - (pre_y - lm.y)
-                            z = round(results.pose_landmarks.landmark[16].z + lm.z)
-                        joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
-                        data.extend([round(x * width), round(height - (y * height)), z])
+                    if results.right_hand_landmarks is not None:
+                        joint_data = []
+                        joint = np.zeros((21, 4))
+                        for j, lm in enumerate(results.right_hand_landmarks.landmark):
+                            if j == 0:
+                                x = results.pose_landmarks.landmark[16].x
+                                y = results.pose_landmarks.landmark[16].y
+                                z = round(results.pose_landmarks.landmark[16].z, 3)
+                                pre_x = x
+                                pre_y = y
+                            else:
+                                x = results.pose_landmarks.landmark[16].x - (pre_x - lm.x)
+                                y = results.pose_landmarks.landmark[16].y - (pre_y - lm.y)
+                                z = round(results.pose_landmarks.landmark[16].z + lm.z, 3)
 
-                if results.left_hand_landmarks is not None:
-                    joint_data = []
-                    joint = np.zeros((21, 4))
+                            print(z)
+                            joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
+                            data.extend([round(x * width), round(height - (y * height)), z])
+
+                    if results.left_hand_landmarks is not None:
+                        joint_data = []
+                        joint = np.zeros((21, 4))
+                        for j, lm in enumerate(results.left_hand_landmarks.landmark):
+                            if j == 0:
+                                x = results.pose_landmarks.landmark[15].x
+                                y = results.pose_landmarks.landmark[15].y
+                                z = round(results.pose_landmarks.landmark[15].z)
+                                pre_x = x
+                                pre_y = y
+                            else:
+                                x = results.pose_landmarks.landmark[15].x - (pre_x - lm.x)
+                                y = results.pose_landmarks.landmark[15].y - (pre_y - lm.y)
+                                z = round(results.pose_landmarks.landmark[15].z + lm.z)
+                            joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
+                            data.extend([round(x * width), round(height - (y * height)), z])
+
+                    sock.sendto(str.encode(str(data)), serverAddressPort)
+
+                elif results.right_hand_landmarks is not None and results.left_hand_landmarks is not None:
+                    L_joint_data = []
+                    L_joint = np.zeros((21, 4))
                     for j, lm in enumerate(results.left_hand_landmarks.landmark):
                         if j == 0:
                             x = results.pose_landmarks.landmark[15].x
                             y = results.pose_landmarks.landmark[15].y
-                            z = round(results.pose_landmarks.landmark[15].z)
+                            z = round(results.pose_landmarks.landmark[15].z, 3)
                             pre_x = x
                             pre_y = y
                         else:
                             x = results.pose_landmarks.landmark[15].x - (pre_x - lm.x)
                             y = results.pose_landmarks.landmark[15].y - (pre_y - lm.y)
-                            z = round(results.pose_landmarks.landmark[15].z + lm.z)
-                        joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
+                            z = round(results.pose_landmarks.landmark[15].z + lm.z, 3)
+                        L_joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
                         data.extend([round(x * width), round(height - (y * height)), z])
 
-                sock.sendto(str.encode(str(data)), serverAddressPort)
+                    R_joint_data = []
+                    R_joint = np.zeros((21, 4))
+                    for j, lm in enumerate(results.right_hand_landmarks.landmark):
+                        if j == 0:
+                            x = results.pose_landmarks.landmark[16].x
+                            y = results.pose_landmarks.landmark[16].y
+                            z = round(results.pose_landmarks.landmark[16].z, 3)
+                            pre_x = x
+                            pre_y = y
+                        else:
+                            x = results.pose_landmarks.landmark[16].x - (pre_x - lm.x)
+                            y = results.pose_landmarks.landmark[16].y - (pre_y - lm.y)
+                            z = round(results.pose_landmarks.landmark[16].z + lm.z, 3)
+                        R_joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
+                        data.extend([round(x * width), round(height - (y * height)), z])
 
-            elif results.right_hand_landmarks is not None and results.left_hand_landmarks is not None:
-                L_joint_data = []
-                L_joint = np.zeros((21, 4))
-                for j, lm in enumerate(results.left_hand_landmarks.landmark):
-                    if j == 0:
-                        x = results.pose_landmarks.landmark[15].x
-                        y = results.pose_landmarks.landmark[15].y
-                        z = round(results.pose_landmarks.landmark[15].z, 3)
-                        pre_x = x
-                        pre_y = y
-                    else:
-                        x = results.pose_landmarks.landmark[15].x - (pre_x - lm.x)
-                        y = results.pose_landmarks.landmark[15].y - (pre_y - lm.y)
-                        z = round(results.pose_landmarks.landmark[15].z + lm.z, 3)
-                    L_joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
-                    data.extend([round(x * width), round(height - (y * height)), z])
+            sock.sendto(str.encode(str(data)), serverAddressPort)
 
-                R_joint_data = []
-                R_joint = np.zeros((21, 4))
-                for j, lm in enumerate(results.right_hand_landmarks.landmark):
-                    if j == 0:
-                        x = results.pose_landmarks.landmark[16].x
-                        y = results.pose_landmarks.landmark[16].y
-                        z = round(results.pose_landmarks.landmark[16].z, 3)
-                        pre_x = x
-                        pre_y = y
-                    else:
-                        x = results.pose_landmarks.landmark[16].x - (pre_x - lm.x)
-                        y = results.pose_landmarks.landmark[16].y - (pre_y - lm.y)
-                        z = round(results.pose_landmarks.landmark[16].z + lm.z, 3)
-                    R_joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
-                    data.extend([round(x * width), round(height - (y * height)), z])
+            if buttonPressed:
+                buttonCounter += 1
+                if buttonCounter > buttonDelay:
+                    buttonCounter = 0
+                    buttonPressed = False
 
-        sock.sendto(str.encode(str(data)), serverAddressPort)
-        print(len(data))
+            cv2.imshow('Raw Webcam Feed', image)
 
-        if buttonPressed:
-            buttonCounter += 1
-            if buttonCounter > buttonDelay:
-                buttonCounter = 0
-                buttonPressed = False
+            if cv2.waitKey(10) & 0xFF == ord('q'):
+                break
 
-        cv2.imshow('Raw Webcam Feed', image)
-
-        if cv2.waitKey(10) & 0xFF == ord('q'):
-            break
+        except Exception:  # mediapipe 데이터 값이 없을때
+            print("화면에 없음")
 
 cap.release()
 cv2.destroyAllWindows()
