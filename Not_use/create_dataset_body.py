@@ -20,7 +20,7 @@ pose = mp_pose.Pose(
 cap = cv2.VideoCapture(0)
 
 created_time = int(time.time())
-os.makedirs('dataset', exist_ok=True)
+os.makedirs('../dataset', exist_ok=True)
 
 while cap.isOpened():
     for idx, action in enumerate(actions):
@@ -80,7 +80,7 @@ while cap.isOpened():
 
         data = np.array(data)
         print(action, data.shape)
-        np.save(os.path.join('dataset', f'raw_{action}_{created_time}'), data)
+        np.save(os.path.join('../dataset', f'raw_{action}_{created_time}'), data)
 
         # Create sequence data
         full_seq_data = []
@@ -89,5 +89,5 @@ while cap.isOpened():
 
         full_seq_data = np.array(full_seq_data)
         print(action, full_seq_data.shape)
-        np.save(os.path.join('dataset', f'seq_{action}_{created_time}'), full_seq_data)
+        np.save(os.path.join('../dataset', f'seq_{action}_{created_time}'), full_seq_data)
     break

@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import socket
 from keras.models import load_model
+import timeit
 
 mp_drawing = mp.solutions.drawing_utils
 mp_holistic = mp.solutions.holistic
@@ -20,6 +21,7 @@ seq_length = 30
 
 seq = []
 action_seq = []
+action_seq = []
 action_list = []
 
 R_action = 'None'
@@ -32,12 +34,11 @@ cap = cv2.VideoCapture(0)
 cap.set(3, 1280)
 cap.set(4, 720)
 
-model = load_model('models/model.h5')
-# Initiate holistic model
-
 with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
     while cap.isOpened():
         ret, frame = cap.read()
+
+        start_t = timeit.default_timer()
 
         # height = frame.shape[0]
         # width = frame.shape[1]
@@ -108,7 +109,6 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                                 y = results.pose_landmarks.landmark[16].y - (pre_y - lm.y)
                                 z = round(results.pose_landmarks.landmark[16].z + lm.z, 3)
 
-                            print(z)
                             joint[j] = [lm.x, lm.y, lm.z, lm.visibility]
                             data.extend([round(x * width), round(height - (y * height)), z])
 
@@ -173,6 +173,11 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                     buttonPressed = False
 
             cv2.imshow('Raw Webcam Feed', image)
+
+            terminate_t = timeit.default_timer()
+
+            FPS = int(1. / (terminate_t - start_t))
+            print(FPS)
 
             if cv2.waitKey(10) & 0xFF == ord('q'):
                 break

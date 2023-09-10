@@ -20,7 +20,7 @@ hands = mp_hands.Hands(
 cap = cv2.VideoCapture(0)
 
 created_time = int(time.time())
-os.makedirs('dataset', exist_ok=True)
+os.makedirs('../dataset', exist_ok=True)
 
 with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
     while cap.isOpened():
@@ -84,7 +84,7 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
 
             data = np.array(data)
             print(action, data.shape)
-            np.save(os.path.join('dataset', f'raw_{action}_{created_time}'), data)
+            np.save(os.path.join('../dataset', f'raw_{action}_{created_time}'), data)
 
             # Create sequence data
             full_seq_data = []
@@ -93,5 +93,5 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
 
             full_seq_data = np.array(full_seq_data)
             print(action, full_seq_data.shape)
-            np.save(os.path.join('dataset', f'seq_{action}_{created_time}'), full_seq_data)
+            np.save(os.path.join('../dataset', f'seq_{action}_{created_time}'), full_seq_data)
         break

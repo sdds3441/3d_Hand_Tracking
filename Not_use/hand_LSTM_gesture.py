@@ -14,7 +14,7 @@ cap = cv2.VideoCapture('C:\\Users\\김효찬\\PycharmProjects\\3d Hand Tracking\
 cap.set(3, width)
 cap.set(4, height)
 
-model = load_model('models/model.h5')
+model = load_model('../models/model.h5')
 
 # Hand Detect
 detector = HandDetector(maxHands=1, detectionCon=0.8)  # 최대 손 1개, 신뢰도? 0.8

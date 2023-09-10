@@ -21,9 +21,9 @@ actions = [
 ]
 
 data = np.concatenate([
-    np.load('dataset/seq_come_1690084133.npy'),
-    np.load('dataset/seq_hi_1690084133.npy'),
-    np.load('dataset/seq_spin_1690084133.npy'),
+    np.load('../dataset/seq_come_1690084133.npy'),
+    np.load('../dataset/seq_hi_1690084133.npy'),
+    np.load('../dataset/seq_spin_1690084133.npy'),
 ], axis=0)
 
 data.shape
@@ -64,7 +64,7 @@ history = model.fit(
     validation_data=(x_val, y_val),
     epochs=50,
     callbacks=[
-        ModelCheckpoint('models/model.h5', monitor='val_acc', verbose=1, save_best_only=True, mode='auto'),
+        ModelCheckpoint('../models/model.h5', monitor='val_acc', verbose=1, save_best_only=True, mode='auto'),
         ReduceLROnPlateau(monitor='val_acc', factor=0.5, patience=50, verbose=1, mode='auto')
     ]
 )
