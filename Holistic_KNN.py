@@ -48,7 +48,6 @@ def cal_gesture(hand_joint):
     angle = np.degrees(angle)  # Convert radian to degree
 
     joint_data = np.array([angle], dtype=np.float32)
-    print(joint_data)
     ret, results, neighbours, dist = knn.findNearest(joint_data, 3)
     idx = int(results[0][0])
 
@@ -154,22 +153,13 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                 joint = cal_extend_data(results.left_hand_landmarks, results.pose_landmarks, "L")
                 L_action = cal_gesture(joint)
 
-        """if pre_R_A==1 and R_action==0:
-            if R_A_C < 3:
-                R_A_C = R_A_C + 1
-                R_action = 1
-            elif R_A_C == 3:
-                R_action = 0
-                R_A_C = 0"""
-
         data.append(R_action)
         data.append(L_action)
 
         pre_R_A = R_action
+        print(data)
 
         sock.sendto(str.encode(str(data)), serverAddressPort)
-        print(R_action)
-
         cv2.imshow('Raw Webcam Feed', image)
 
         terminate_t = timeit.default_timer()

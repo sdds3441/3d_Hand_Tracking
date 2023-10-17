@@ -45,8 +45,10 @@ while True:
 
         if buttonPressed is False:
             hand
+            print(hand)
             fingers = detector.fingersUp(hand)
             lmList = hand['lmList']
+            print(lmList)
 
             indexFinger = lmList[8][0], lmList[8][1]
 
@@ -65,8 +67,6 @@ while True:
 
         lmList = hand['lmList']
         for lm in lmList:
-            print(lm[1])
-
             if lm[2] == 0:
                 if buttonPressed is True:
                     addObject = 'None'
