@@ -2,8 +2,7 @@ import timeit
 import mediapipe as mp
 import cv2
 import numpy as np
-import threading
-import sys
+import socket
 
 
 def cal_extend_data(hand_landmarks, pose_landmarks, which_hand):
@@ -31,6 +30,8 @@ def cal_extend_data(hand_landmarks, pose_landmarks, which_hand):
 
 
 def cal_gesture(hand_joint):
+    action = 0
+
     v1 = hand_joint[[0, 1, 2, 3, 0, 5, 6, 7, 0, 9, 10, 11, 0, 13, 14, 15, 0, 17, 18, 19],
          :3]  # Parent joint
     v2 = hand_joint[[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
@@ -47,47 +48,52 @@ def cal_gesture(hand_joint):
     angle = np.degrees(angle)  # Convert radian to degree
 
     joint_data = np.array([angle], dtype=np.float32)
+    ret, results, neighbours, dist = knn.findNearest(joint_data, 3)
+    idx = int(results[0][0])
 
-    return joint_data
+    # Draw gesture result
+    if idx in rps_gesture.keys():
+        if idx == 1:
+            action = 1
+        elif idx == 2:
+            action = 2
+        else:
+            action = 0
 
+    return action
 
-def timer():
-    global sec
-    sec += 1
-
-    timers = threading.Timer(1, timer)
-    timers.start()
-
-    if sec == 3:
-        timers.cancel()
-
-
-rps_gesture = {0: 'stop', 1: 'flame', 2: 'release'}
-
-width = 1280
-height = 720
-
-cap = cv2.VideoCapture(0)
-cap.set(3, width)
-cap.set(4, height)
 
 mp_drawing = mp.solutions.drawing_utils
 mp_holistic = mp.solutions.holistic
 
-sec = 0
-pos_idx = 0
-first = True
-counter = 0
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+serverAddressPort = ("127.0.0.1", 5052)
+
+rps_gesture = {0: 'stop', 1: 'flame', 2: 'release'}
+data = []
+
+width = 1280
+height = 720
+
+knn = cv2.ml.KNearest_create()
+file = np.genfromtxt('particle.csv', delimiter=',')
+angle = file[:, :-1].astype(np.float32)
+label = file[:, -1].astype(np.float32)
+knn.train(angle, cv2.ml.ROW_SAMPLE, label)
+cap = cv2.VideoCapture(0)
+cap.set(3, width)
+cap.set(4, height)
+
+# Initiate holistic model
 
 with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
     while cap.isOpened():
         ret, frame = cap.read()
 
         start_t = timeit.default_timer()
-
+        R_action = 9
+        L_action = 9
         data = []
-        R_action = 0
-        L_action = 0
 
         # Recolor Feed
         image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -111,52 +117,57 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                                   mp_drawing.DrawingSpec(color=(121, 44, 250), thickness=2, circle_radius=2)
                                   )
 
-        if results.right_hand_landmarks is not None:
+        # 4. Pose Detections
+        mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS,
+                                  mp_drawing.DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=4),
+                                  mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2)
+                                  )
 
-            joint = cal_extend_data(results.right_hand_landmarks, results.pose_landmarks, "R")
-            angle = cal_gesture(joint)
+        if results.pose_landmarks.landmark is not None:
 
-            if sec == 0:
-                timer()
-            # print(counter)
-            print(sec, counter)
-            if sec == 3:
-                angle = np.append(angle, pos_idx)
-                angle = np.expand_dims(angle, axis=0)
-                if first:
-                    angle_data = angle
-                    first = False
+            for i, lm in enumerate(results.pose_landmarks.landmark):
+
+                if lm.visibility < 0.01:
+                    visible = False
                 else:
-                    angle_data = np.append(angle_data, angle, axis=0)
-                # print(grab_data.shape)
-                sec = 0
-                counter += 1
-                #print(sec, counter)
-            if counter == 10:
-                cv2.waitKey(3000)
-                pos_idx += 1
-                counter = 0
-                sec=0
+                    visible = True
 
-            """if cv2.waitKey(1) & 0xFF == ord('0'):
-                grab = np.append(grab, int(0))
-                grab = np.expand_dims(grab, axis=0)
-                if counter == 0:
-                    grab_data = grab
-                else:
-                    print(grab_data.shape)
-                    grab_data = np.append(grab_data, grab, axis=0)
+                data.extend([round(lm.x * width), round(height - (lm.y * height)), round(lm.z, 3)])
 
-            elif cv2.waitKey(1) & 0xFF == ord('1'):
-                grab = np.append(grab, int(1))
-                print(grab)
-                if counter == 0:
-                    grab_data = grab
-                else:
-                    grab_data = np.append(grab_data, grab, axis=counter)
-                counter += 1"""
+            if (results.right_hand_landmarks is None or results.left_hand_landmarks is None) and (
+                    results.right_hand_landmarks is not None or results.left_hand_landmarks is not None):
 
+                if results.right_hand_landmarks is not None:
+                    joint = cal_extend_data(results.right_hand_landmarks, results.pose_landmarks, "R")
+                    R_action = cal_gesture(joint)
+
+                elif results.left_hand_landmarks is not None:
+                    joint = cal_extend_data(results.left_hand_landmarks, results.pose_landmarks, "L")
+                    L_action = cal_gesture(joint)
+
+            elif results.right_hand_landmarks is not None and results.left_hand_landmarks is not None:
+                joint = cal_extend_data(results.right_hand_landmarks, results.pose_landmarks, "R")
+                R_action = cal_gesture(joint)
+
+                joint = cal_extend_data(results.left_hand_landmarks, results.pose_landmarks, "L")
+                L_action = cal_gesture(joint)
+
+        data.append(R_action)
+        data.append(L_action)
+
+        pre_R_A = R_action
+        print(data)
+
+        sock.sendto(str.encode(str(data)), serverAddressPort)
         cv2.imshow('Raw Webcam Feed', image)
-        if cv2.waitKey(1) & 0xFF == ord('q') or pos_idx == 3:
-            np.savetxt("particle.csv", angle_data, delimiter=",", fmt="%.5f")
-            exit()
+
+        terminate_t = timeit.default_timer()
+
+        FPS = int(1. / (terminate_t - start_t))
+        # print(FPS)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+cap.release()
+cv2.destroyAllWindows()

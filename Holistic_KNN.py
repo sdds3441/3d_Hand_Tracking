@@ -75,7 +75,6 @@ width = 1280
 height = 720
 
 knn = cv2.ml.KNearest_create()
-#file = np.genfromtxt('data/gesture_train.csv', delimiter=',')
 file = np.genfromtxt('gestures.csv', delimiter=',')
 angle = file[:, :-1].astype(np.float32)
 label = file[:, -1].astype(np.float32)
