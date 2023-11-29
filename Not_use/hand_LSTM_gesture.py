@@ -109,6 +109,7 @@ while True:
             action_list = ["None"]
 
         if buttonPressed is True:
+
             this_action = 'None'
         else:
             this_action = max(set(action_list), key=action_list.count)
