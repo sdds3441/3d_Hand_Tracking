@@ -85,87 +85,73 @@ cap.set(3, width)
 cap.set(4, height)
 
 # Initiate holistic model
-
 with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
     while cap.isOpened():
         ret, frame = cap.read()
         frame = cv2.flip(frame, 1)
 
         start_t = timeit.default_timer()
-        R_action = 9
-        L_action = 9
+
         data = []
 
-        # Recolor Feed
         image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        # Make Detections
-        results = holistic.process(image)
+        try:
+            results = holistic.process(image)
 
-        # face_landmarks, pose_landmarks, left_hand_landmarks, right_hand_landmarks
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
-        # Recolor image back to BGR for rendering
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            # 2. Right hand
+            mp_drawing.draw_landmarks(image, results.right_hand_landmarks, mp_holistic.HAND_CONNECTIONS,
+                                      mp_drawing.DrawingSpec(color=(80, 22, 10), thickness=2, circle_radius=4),
+                                      mp_drawing.DrawingSpec(color=(80, 44, 121), thickness=2, circle_radius=2)
+                                      )
 
-        # 2. Right hand
-        mp_drawing.draw_landmarks(image, results.right_hand_landmarks, mp_holistic.HAND_CONNECTIONS,
-                                  mp_drawing.DrawingSpec(color=(80, 22, 10), thickness=2, circle_radius=4),
-                                  mp_drawing.DrawingSpec(color=(80, 44, 121), thickness=2, circle_radius=2)
-                                  )
+            # 3. Left Hand
+            mp_drawing.draw_landmarks(image, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS,
+                                      mp_drawing.DrawingSpec(color=(121, 22, 76), thickness=2, circle_radius=4),
+                                      mp_drawing.DrawingSpec(color=(121, 44, 250), thickness=2, circle_radius=2)
+                                      )
 
-        # 3. Left Hand
-        mp_drawing.draw_landmarks(image, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS,
-                                  mp_drawing.DrawingSpec(color=(121, 22, 76), thickness=2, circle_radius=4),
-                                  mp_drawing.DrawingSpec(color=(121, 44, 250), thickness=2, circle_radius=2)
-                                  )
+            # 4. Pose Detections
+            mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS,
+                                      mp_drawing.DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=4),
+                                      mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2)
+                                      )
 
-        # 4. Pose Detections
-        mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS,
-                                  mp_drawing.DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=4),
-                                  mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2)
-                                  )
+            if results.pose_landmarks.landmark is not None:
 
-        if results.pose_landmarks.landmark is not None:
+                for i, lm in enumerate(results.pose_landmarks.landmark):
 
-            for i, lm in enumerate(results.pose_landmarks.landmark):
+                    if lm.visibility < 0.01:
+                        visible = False
+                    else:
+                        visible = True
 
-                if lm.visibility < 0.01:
-                    visible = False
-                else:
-                    visible = True
+                    data.extend([round(lm.x * width), round(height - (lm.y * height)), round(lm.z, 3)])
 
-                data.extend([round(lm.x * width), round(height - (lm.y * height)), round(lm.z, 3)])
+                if (results.right_hand_landmarks is None or results.left_hand_landmarks is None) and (
+                        results.right_hand_landmarks is not None or results.left_hand_landmarks is not None):
 
-            if (results.right_hand_landmarks is None or results.left_hand_landmarks is None) and (
-                    results.right_hand_landmarks is not None or results.left_hand_landmarks is not None):
+                    if results.right_hand_landmarks is not None:
+                        joint = cal_extend_data(results.right_hand_landmarks, results.pose_landmarks, "R")
 
-                if results.right_hand_landmarks is not None:
-                    joint = cal_extend_data(results.right_hand_landmarks, results.pose_landmarks, "R")
-                    R_action = cal_gesture(joint, "R")
+                    elif results.left_hand_landmarks is not None:
+                        joint = cal_extend_data(results.left_hand_landmarks, results.pose_landmarks, "L")
 
-                elif results.left_hand_landmarks is not None:
-                    joint = cal_extend_data(results.left_hand_landmarks, results.pose_landmarks, "L")
-                    L_action = cal_gesture(joint, "L")
+                elif results.right_hand_landmarks is not None and results.left_hand_landmarks is not None:
+                    cal_extend_data(results.right_hand_landmarks, results.pose_landmarks, "R")
+                    cal_extend_data(results.left_hand_landmarks, results.pose_landmarks, "L")
 
-            elif results.right_hand_landmarks is not None and results.left_hand_landmarks is not None:
-                joint = cal_extend_data(results.right_hand_landmarks, results.pose_landmarks, "R")
-                R_action = cal_gesture(joint, "R")
+            sock.sendto(str.encode(str(data)), serverAddressPort)
 
-                joint = cal_extend_data(results.left_hand_landmarks, results.pose_landmarks, "L")
-                L_action = cal_gesture(joint, "L")
+        except:
+            print("detecting fail")
 
-        data.append(R_action)
-        data.append(L_action)
-
-        pre_R_A = R_action
-        #print(R_action)
-
-        sock.sendto(str.encode(str(data)), serverAddressPort)
         cv2.imshow('Raw Webcam Feed', image)
 
         terminate_t = timeit.default_timer()
 
         FPS = int(1. / (terminate_t - start_t))
-        print(FPS)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
