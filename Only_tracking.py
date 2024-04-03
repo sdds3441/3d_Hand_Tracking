@@ -143,11 +143,12 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                     cal_extend_data(results.left_hand_landmarks, results.pose_landmarks, "L")
 
             sock.sendto(str.encode(str(data)), serverAddressPort)
-
+            print(data)
         except:
-            print("detecting fail")
+            a=1+1
+        #print("detecting fail")
 
-        cv2.imshow('Raw Webcam Feed', image)
+        #cv2.imshow('Raw Webcam Feed', image)
 
         terminate_t = timeit.default_timer()
 
